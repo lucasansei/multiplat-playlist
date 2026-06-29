@@ -1,21 +1,88 @@
+// internal/queue/queue.go
 package queue
 
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+const (
+	configDirName = ".config"
+	appDirName    = "multiplat-playlist"
+	queueFileName = "queue.json"
+)
+
 type Track struct {
-	Platform string
-	ID       string
-	URL      string
+	Platform string `json:"platform"`
+	ID       string `json:"id"`
+	URL      string `json:"url"`
 }
 
 type Queue struct {
 	tracks []Track
 	index  int
+	path   string
 }
 
-func New() *Queue {
-	return &Queue{
+type queueData struct {
+	Tracks []Track `json:"tracks"`
+	Index  int     `json:"index"`
+}
+
+func Load() (*Queue, error) {
+	path, err := getQueuePath()
+	if err != nil {
+		return nil, fmt.Errorf("get queue path: %w", err)
+	}
+
+	q := &Queue{
 		tracks: make([]Track, 0),
 		index:  -1,
+		path:   path,
 	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return q, nil
+		}
+		return nil, fmt.Errorf("read queue: %w", err)
+	}
+
+	var saved queueData
+	if err := json.Unmarshal(data, &saved); err != nil {
+		return nil, fmt.Errorf("parse queue: %w", err)
+	}
+
+	q.tracks = saved.Tracks
+	q.index = saved.Index
+
+	return q, nil
+}
+
+func (q *Queue) Save() error {
+	configDir := filepath.Dir(q.path)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("create queue dir: %w", err)
+	}
+
+	saved := queueData{
+		Tracks: q.tracks,
+		Index:  q.index,
+	}
+
+	data, err := json.MarshalIndent(saved, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal queue: %w", err)
+	}
+
+	if err := os.WriteFile(q.path, data, 0644); err != nil {
+		return fmt.Errorf("write queue: %w", err)
+	}
+
+	return nil
 }
 
 func (q *Queue) Add(track Track) {
@@ -37,6 +104,27 @@ func (q *Queue) Current() *Track {
 	return nil
 }
 
+func (q *Queue) CurrentIndex() int {
+	return q.index
+}
+
+func (q *Queue) List() []Track {
+	return q.tracks
+}
+
 func (q *Queue) Size() int {
 	return len(q.tracks)
+}
+
+func (q *Queue) Clear() {
+	q.tracks = make([]Track, 0)
+	q.index = -1
+}
+
+func getQueuePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, configDirName, appDirName, queueFileName), nil
 }

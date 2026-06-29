@@ -1,9 +1,17 @@
+// internal/config/config.go
 package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+)
+
+const (
+	configDirName  = ".config"
+	appDirName     = "multiplat-playlist"
+	configFileName = "config.json"
 )
 
 type Config struct {
@@ -22,24 +30,56 @@ type PlayerConfig struct {
 }
 
 func Load() (*Config, error) {
-	home, err := os.UserHomeDir()
+	path, err := getConfigPath()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get config path: %w", err)
 	}
 
-	configPath := filepath.Join(home, ".config", "multiplat-playlist", "config.json")
-	
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return getDefaultConfig(), nil
+		if os.IsNotExist(err) {
+			return getDefaultConfig(), nil
+		}
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+func (c *Config) Save() error {
+	path, err := getConfigPath()
+	if err != nil {
+		return fmt.Errorf("get config path: %w", err)
+	}
+
+	configDir := filepath.Dir(path)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+
+	return nil
+}
+
+func getConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, configDirName, appDirName, configFileName), nil
 }
 
 func getDefaultConfig() *Config {
@@ -49,24 +89,4 @@ func getDefaultConfig() *Config {
 			Volume:  100,
 		},
 	}
-}
-
-func (c *Config) Save() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	configDir := filepath.Join(home, ".config", "multiplat-playlist")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return err
-	}
-
-	configPath := filepath.Join(configDir, "config.json")
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(configPath, data, 0644)
 }
