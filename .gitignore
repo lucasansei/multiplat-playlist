@@ -4,8 +4,8 @@
 *.dll
 *.so
 *.dylib
-mplay
-multiplat-playlist
+/mplay
+/multiplat-playlist
 
 # Test binary, built with `go test -c`
 *.test
@@ -40,6 +40,7 @@ config.json
 # User-specific runtime data
 *.log
 .cache/
+/MEMORY.md
 
 # OS generated files
 Thumbs.db
