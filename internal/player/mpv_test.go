@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,6 +42,7 @@ func TestMPVPlayerPlayDoesNotHoldLockWhileWaiting(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatalf("Play() did not report playback start\nfake mpv log:\n%s", readFakeMPVLog(t))
 	}
+	assertFakeMPVArgs(t, readFakeMPVLog(t))
 
 	pauseDone := make(chan error, 1)
 	go func() {
@@ -65,6 +67,21 @@ func TestMPVPlayerPlayDoesNotHoldLockWhileWaiting(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Play() did not exit after context cancellation")
+	}
+}
+
+func assertFakeMPVArgs(t *testing.T, log string) {
+	t.Helper()
+
+	wantParts := []string{
+		"--no-video --really-quiet --no-terminal",
+		"--input-ipc-server=",
+		"--idle=yes fake://stream",
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(log, want) {
+			t.Fatalf("fake mpv log = %q, want to contain %q", log, want)
+		}
 	}
 }
 
