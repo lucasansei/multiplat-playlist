@@ -5,9 +5,16 @@ import (
 	"context"
 )
 
+type PlaybackSession struct {
+	PID        int
+	SocketPath string
+}
+
+type StartFunc func(PlaybackSession) error
+
 // Player defines the interface for audio playback control
 type Player interface {
-	Play(ctx context.Context, url string) error
+	Play(ctx context.Context, url string, onStart StartFunc) error
 	Pause() error
 	Resume() error
 	Stop() error

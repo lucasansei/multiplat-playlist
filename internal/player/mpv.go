@@ -52,7 +52,7 @@ func (p *MPVPlayer) IsAvailable() bool {
 }
 
 // Play starts playing the given URL
-func (p *MPVPlayer) Play(ctx context.Context, url string) error {
+func (p *MPVPlayer) Play(ctx context.Context, url string, onStart StartFunc) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -96,6 +96,16 @@ func (p *MPVPlayer) Play(ctx context.Context, url string) error {
 		return fmt.Errorf("dial socket: %w", err)
 	}
 	p.conn = conn
+
+	if onStart != nil {
+		if err := onStart(PlaybackSession{
+			PID:        cmd.Process.Pid,
+			SocketPath: socketPath,
+		}); err != nil {
+			p.cleanup()
+			return fmt.Errorf("start playback session: %w", err)
+		}
+	}
 
 	// Wait for playback to finish or context cancellation
 	done := make(chan error, 1)

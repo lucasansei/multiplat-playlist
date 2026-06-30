@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/lucasansei/multiplat-playlist/internal/config"
 	"github.com/lucasansei/multiplat-playlist/internal/parser"
 	"github.com/lucasansei/multiplat-playlist/internal/player"
 	"github.com/lucasansei/multiplat-playlist/internal/queue"
+	"github.com/lucasansei/multiplat-playlist/internal/session"
 	"github.com/lucasansei/multiplat-playlist/internal/youtube"
 )
 
@@ -114,8 +116,14 @@ func (a *App) PlayURL(ctx context.Context, url string) error {
 		return fmt.Errorf("get stream: %w", err)
 	}
 
+	track := queue.Track{
+		Platform: string(parsed.Platform),
+		ID:       parsed.ID,
+		URL:      parsed.Original,
+	}
+
 	fmt.Printf("▶ Playing: %s\n", url)
-	return a.player.Play(ctx, streamURL)
+	return a.playStream(ctx, streamURL, track, -1, 0)
 }
 
 func (a *App) QueueAdd(url string) error {
@@ -182,7 +190,7 @@ func (a *App) QueuePlay(ctx context.Context) error {
 
 		fmt.Printf("▶ Playing [%d/%d]: %s\n", a.queue.CurrentIndex()+1, a.queue.Size(), track.URL)
 
-		if err := a.player.Play(ctx, streamURL); err != nil {
+		if err := a.playStream(ctx, streamURL, *track, a.queue.CurrentIndex(), a.queue.Size()); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -338,6 +346,50 @@ func (a *App) AuthSpotify() error {
 
 	fmt.Println("✓ Spotify credentials saved!")
 	return nil
+}
+
+func (a *App) playStream(ctx context.Context, streamURL string, track queue.Track, queueIndex int, queueSize int) error {
+	if err := session.Clear(); err != nil {
+		return fmt.Errorf("clear previous session: %w", err)
+	}
+
+	sessionSaved := false
+	err := a.player.Play(ctx, streamURL, func(playback player.PlaybackSession) error {
+		state := session.State{
+			Player:     "mpv",
+			PID:        playback.PID,
+			SocketPath: playback.SocketPath,
+			Track: session.Track{
+				Platform: track.Platform,
+				ID:       track.ID,
+				URL:      track.URL,
+			},
+			QueueIndex: queueIndex,
+			QueueSize:  queueSize,
+			StartedAt:  time.Now().UTC(),
+		}
+
+		if err := session.Save(state); err != nil {
+			return err
+		}
+		sessionSaved = true
+		return nil
+	})
+
+	if sessionSaved {
+		clearErr := session.Clear()
+		if err != nil {
+			if clearErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: error clearing session: %v\n", clearErr)
+			}
+			return err
+		}
+		if clearErr != nil {
+			return fmt.Errorf("clear session: %w", clearErr)
+		}
+	}
+
+	return err
 }
 
 func (a *App) getStreamURL(parsed *parser.ParsedURL) (string, error) {
