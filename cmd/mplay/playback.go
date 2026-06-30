@@ -41,7 +41,8 @@ func newResumeCmd() *cobra.Command {
 func newNextCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "next",
-		Short: "Skip to next song",
+		Short: "Stop current playback so a running queue can advance",
+		Long:  "Stop the active MPV playback session. In the current foreground queue model, this advances only when mplay queue play is still running.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			application, err := app.NewControl()
 			if err != nil {

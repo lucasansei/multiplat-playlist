@@ -281,6 +281,8 @@ func (a *App) Resume() error {
 }
 
 func (a *App) Next() error {
+	// In the current foreground queue model, next only stops active playback.
+	// A running QueuePlay loop owns queue index advancement after MPV exits.
 	if err := a.stopActiveSession(); err != nil {
 		return err
 	}
@@ -297,7 +299,7 @@ func (a *App) Stop() error {
 }
 
 func (a *App) Status() error {
-	state, err := a.activeSession()
+	state, client, err := a.activeMPV()
 	if err != nil {
 		if errors.Is(err, ErrNoSession) {
 			fmt.Println("Status: stopped")
@@ -305,11 +307,6 @@ func (a *App) Status() error {
 			return nil
 		}
 		return err
-	}
-
-	client, err := player.DialMPVIPC(state.SocketPath)
-	if err != nil {
-		return fmt.Errorf("connect to active player: %w", err)
 	}
 	defer client.Close()
 
@@ -382,21 +379,33 @@ func (a *App) stopActiveSession() error {
 }
 
 func (a *App) withActiveMPV(fn func(*session.State, *player.MPVIPCClient) error) error {
-	state, err := a.activeSession()
+	state, client, err := a.activeMPV()
 	if err != nil {
 		return err
-	}
-	if state.Player != "mpv" {
-		return fmt.Errorf("unsupported active player: %s", state.Player)
-	}
-
-	client, err := player.DialMPVIPC(state.SocketPath)
-	if err != nil {
-		return fmt.Errorf("connect to active player: %w", err)
 	}
 	defer client.Close()
 
 	return fn(state, client)
+}
+
+func (a *App) activeMPV() (*session.State, *player.MPVIPCClient, error) {
+	state, err := a.activeSession()
+	if err != nil {
+		return nil, nil, err
+	}
+	if state.Player != "mpv" {
+		return nil, nil, fmt.Errorf("unsupported active player: %s", state.Player)
+	}
+
+	client, err := player.DialMPVIPC(state.SocketPath)
+	if err != nil {
+		if clearErr := session.Clear(); clearErr != nil {
+			return nil, nil, fmt.Errorf("clear stale session: %w", clearErr)
+		}
+		return nil, nil, ErrNoSession
+	}
+
+	return state, client, nil
 }
 
 func (a *App) activeSession() (*session.State, error) {

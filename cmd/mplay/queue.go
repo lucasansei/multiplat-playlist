@@ -42,7 +42,8 @@ func newQueueAddCmd() *cobra.Command {
 func newQueuePlayCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "play",
-		Short: "Start playing the queue",
+		Short: "Play the queue in the foreground",
+		Long:  "Play queued tracks sequentially and keep this command running. Playback controls use the active MPV session; next advances the queue only while this command is still running.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			application, err := app.NewPlayback()
 			if err != nil {

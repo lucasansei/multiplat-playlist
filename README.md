@@ -1,6 +1,8 @@
 # multiplat-playlist
 
-A CLI music player written in Go that seamlessly plays songs from Spotify or YouTube without switching apps.
+A CLI music player written in Go for playing links from multiple music platforms in one queue.
+
+Current status: early MVP. YouTube playback works through `yt-dlp` and `mpv`. Spotify URLs are parsed, but Spotify playback is not implemented yet.
 
 ## Why?
 
@@ -8,10 +10,11 @@ Sometimes you want to listen to a song only available on YouTube, but you're vib
 
 ## Features
 
-- Play Spotify and YouTube songs from the command line
-- Seamless transitions between platforms
-- Single interface, no app switching
-- Queue songs from different platforms together
+- Play YouTube songs from the command line
+- Queue supported links and play them sequentially
+- Control active MPV playback with pause, resume, stop, next, and status commands
+- Persist config, queue state, and active playback session metadata
+- Planned: Spotify metadata and playback support
 
 ## Installation
 
@@ -32,7 +35,7 @@ go install github.com/yourusername/multiplat-playlist/cmd/mplay@latest
 
 ## Prerequisites
 
-- **mpv** or **ffplay** installed for audio playback
+- **mpv** installed for audio playback
 - **yt-dlp** for YouTube stream extraction
 
 ```bash
@@ -50,13 +53,11 @@ sudo pacman -S mpv yt-dlp
 
 Play a single song:
 ```bash
-mplay https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp
 mplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
 
 Queue multiple songs:
 ```bash
-mplay queue add https://open.spotify.com/track/[id]
 mplay queue add https://youtu.be/[video-id]
 mplay queue play
 ```
@@ -70,10 +71,22 @@ mplay stop
 mplay status
 ```
 
+### Playback Control Model
+
+The current queue model is foreground-only:
+
+- `mplay queue play` must stay running while the queue is playing.
+- The active MPV PID and IPC socket are saved in `~/.config/multiplat-playlist/session.json`.
+- `pause`, `resume`, `stop`, `next`, and `status` can be run from another terminal while that session is active.
+- `next` stops the active MPV process. The queue advances only if the original `mplay queue play` process is still running and observes MPV exit.
+- `next` does not mutate persisted queue state by itself when no active playback session exists.
+
+A daemon/session worker model is planned for future cross-invocation queue ownership.
+
 ## Supported Platforms
 
-- **Spotify** - Requires Spotify Premium and authentication
-- **YouTube** - Works without authentication
+- **YouTube** - Implemented through `yt-dlp`
+- **Spotify** - URL parsing only; playback is planned
 
 ### Supported URL Formats
 
@@ -87,7 +100,7 @@ mplay status
 
 ## Configuration
 
-First run will prompt for Spotify credentials:
+Spotify credential storage exists, but Spotify playback does not use it yet:
 ```bash
 mplay auth
 ```
@@ -111,16 +124,16 @@ Get Spotify credentials from the [Spotify Developer Dashboard](https://developer
 ## Tech Stack
 
 - **Go** - Fast, single-binary distribution, excellent concurrency
-- Spotify Web API
+- Spotify Web API scaffolding
 - yt-dlp for YouTube stream extraction
 - mpv for audio playback
 
 ## How It Works
 
-1. Parse the URL to detect platform (Spotify/YouTube)
-2. Fetch playback URL/stream from the respective service
-3. Route to mpv player backend
-4. Maintain queue state across platforms
+1. Parse the URL to detect the platform.
+2. For YouTube links, resolve an audio stream with `yt-dlp`.
+3. Route the stream to `mpv`.
+4. Persist queue state and active MPV session metadata.
 
 ## Project Structure
 
@@ -142,16 +155,18 @@ multiplat-playlist/
 
 ## Limitations
 
-- Spotify playback requires Spotify Premium
+- Spotify playback is not implemented yet
 - YouTube playback quality depends on available streams
 - Terminal-based, no GUI controls
 - Requires external dependencies (mpv, yt-dlp)
+- Queue playback is foreground-only; there is no daemon that owns queue advancement after `mplay queue play` exits
 
 ## Roadmap
 
+- [ ] Spotify metadata and preview playback fallback
+- [ ] Session/daemon queue worker for cross-invocation queue ownership
 - [ ] Playlist URL support
 - [ ] Search functionality (play by song name)
-- [ ] Save/load queues
 - [ ] Interactive TUI mode with progress bar
 - [ ] Cross-compilation releases (Linux, macOS, Windows)
 

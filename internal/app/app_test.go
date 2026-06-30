@@ -145,6 +145,65 @@ func TestQueuePlayPlaysTracksInOrder(t *testing.T) {
 	}
 }
 
+func TestStatusClearsSessionWhenMPVIPCIsUnreachable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	socketPath := filepath.Join(t.TempDir(), "mpv.sock")
+	if err := os.WriteFile(socketPath, nil, 0o600); err != nil {
+		t.Fatalf("write socket placeholder: %v", err)
+	}
+	if err := session.Save(session.State{
+		Player:     "mpv",
+		PID:        os.Getpid(),
+		SocketPath: socketPath,
+		Track: session.Track{
+			Platform: "youtube",
+			ID:       "one",
+			URL:      "https://youtu.be/one",
+		},
+		QueueIndex: 0,
+		QueueSize:  2,
+	}); err != nil {
+		t.Fatalf("session.Save() error = %v", err)
+	}
+
+	a := newWithDependencies(&config.Config{}, nil, nil, nil)
+	if err := a.Status(); err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+
+	state, err := session.Load()
+	if err != nil {
+		t.Fatalf("session.Load() error = %v", err)
+	}
+	if state != nil {
+		t.Fatalf("session after Status() = %#v, want nil", state)
+	}
+}
+
+func TestNextRequiresActivePlaybackSessionAndDoesNotAdvanceQueue(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	q, err := queue.LoadFromPath(filepath.Join(t.TempDir(), "queue.json"))
+	if err != nil {
+		t.Fatalf("LoadFromPath() error = %v", err)
+	}
+	q.Add(queue.Track{Platform: "youtube", ID: "one", URL: "https://youtu.be/one"})
+	q.Add(queue.Track{Platform: "youtube", ID: "two", URL: "https://youtu.be/two"})
+	if got := q.Next(); got == nil {
+		t.Fatal("Next() returned nil, want first queue item")
+	}
+
+	a := newWithDependencies(&config.Config{}, q, nil, nil)
+	err = a.Next()
+	if !errors.Is(err, ErrNoSession) {
+		t.Fatalf("Next() error = %v, want %v", err, ErrNoSession)
+	}
+	if q.CurrentIndex() != 0 {
+		t.Fatalf("CurrentIndex() after app Next() = %d, want 0", q.CurrentIndex())
+	}
+}
+
 type fakePlayer struct {
 	playedURLs []string
 	playErr    error
