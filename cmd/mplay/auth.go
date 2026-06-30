@@ -1,16 +1,13 @@
 package main
 
-import (
-	"github.com/lucasansei/multiplat-playlist/internal/app"
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
-func newAuthCmd() *cobra.Command {
+func newAuthCmd(newConfig appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "auth",
 		Short: "Authenticate with Spotify",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewConfig()
+			application, err := newConfig()
 			if err != nil {
 				return err
 			}

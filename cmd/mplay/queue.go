@@ -1,34 +1,31 @@
 // cmd/mplay/queue.go
 package main
 
-import (
-	"github.com/lucasansei/multiplat-playlist/internal/app"
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
-func newQueueCmd() *cobra.Command {
+func newQueueCmd(factories appFactories) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue",
 		Short: "Manage playback queue",
 	}
 
 	cmd.AddCommand(
-		newQueueAddCmd(),
-		newQueuePlayCmd(),
-		newQueueListCmd(),
-		newQueueClearCmd(),
+		newQueueAddCmd(factories.queue),
+		newQueuePlayCmd(factories.playback),
+		newQueueListCmd(factories.queue),
+		newQueueClearCmd(factories.queue),
 	)
 
 	return cmd
 }
 
-func newQueueAddCmd() *cobra.Command {
+func newQueueAddCmd(newQueue appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "add [url]",
 		Short: "Add a song to the queue",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewQueue()
+			application, err := newQueue()
 			if err != nil {
 				return err
 			}
@@ -39,13 +36,13 @@ func newQueueAddCmd() *cobra.Command {
 	}
 }
 
-func newQueuePlayCmd() *cobra.Command {
+func newQueuePlayCmd(newPlayback appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "play",
 		Short: "Play the queue in the foreground",
 		Long:  "Play queued tracks sequentially and keep this command running. Playback controls use the active MPV session; next advances the queue only while this command is still running.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := newPlayback()
 			if err != nil {
 				return err
 			}
@@ -56,12 +53,12 @@ func newQueuePlayCmd() *cobra.Command {
 	}
 }
 
-func newQueueListCmd() *cobra.Command {
+func newQueueListCmd(newQueue appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Show current queue",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewQueue()
+			application, err := newQueue()
 			if err != nil {
 				return err
 			}
@@ -72,12 +69,12 @@ func newQueueListCmd() *cobra.Command {
 	}
 }
 
-func newQueueClearCmd() *cobra.Command {
+func newQueueClearCmd(newQueue appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear",
 		Short: "Clear the queue",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewQueue()
+			application, err := newQueue()
 			if err != nil {
 				return err
 			}

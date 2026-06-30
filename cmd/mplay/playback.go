@@ -1,17 +1,14 @@
 // cmd/mplay/playback.go
 package main
 
-import (
-	"github.com/lucasansei/multiplat-playlist/internal/app"
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
-func newPauseCmd() *cobra.Command {
+func newPauseCmd(newControl appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "pause",
 		Short: "Pause playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewControl()
+			application, err := newControl()
 			if err != nil {
 				return err
 			}
@@ -22,12 +19,12 @@ func newPauseCmd() *cobra.Command {
 	}
 }
 
-func newResumeCmd() *cobra.Command {
+func newResumeCmd(newControl appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "resume",
 		Short: "Resume playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewControl()
+			application, err := newControl()
 			if err != nil {
 				return err
 			}
@@ -38,13 +35,13 @@ func newResumeCmd() *cobra.Command {
 	}
 }
 
-func newNextCmd() *cobra.Command {
+func newNextCmd(newControl appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "next",
 		Short: "Stop current playback so a running queue can advance",
 		Long:  "Stop the active MPV playback session. In the current foreground queue model, this advances only when mplay queue play is still running.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewControl()
+			application, err := newControl()
 			if err != nil {
 				return err
 			}
@@ -55,12 +52,12 @@ func newNextCmd() *cobra.Command {
 	}
 }
 
-func newStopCmd() *cobra.Command {
+func newStopCmd(newControl appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewControl()
+			application, err := newControl()
 			if err != nil {
 				return err
 			}
@@ -71,12 +68,12 @@ func newStopCmd() *cobra.Command {
 	}
 }
 
-func newStatusCmd() *cobra.Command {
+func newStatusCmd(newControl appFactory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show playback status",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewControl()
+			application, err := newControl()
 			if err != nil {
 				return err
 			}

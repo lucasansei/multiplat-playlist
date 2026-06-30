@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lucasansei/multiplat-playlist/internal/app"
 	"github.com/spf13/cobra"
 )
 
@@ -23,33 +22,41 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
+	return newRootCmdWithFactories(defaultAppFactories())
+}
+
+func newRootCmdWithFactories(factories appFactories) *cobra.Command {
+	factories = factories.withDefaults()
+
 	cmd := &cobra.Command{
 		Use:   "mplay [url]",
 		Short: "A unified music player for Spotify and YouTube",
 		Long:  "Play songs from supported music links. YouTube playback is implemented; Spotify track previews play when credentials and preview URLs are available.",
 		Args:  cobra.MaximumNArgs(1),
-		RunE:  runPlay,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPlay(cmd, args, factories.playback)
+		},
 	}
 
 	cmd.AddCommand(
-		newQueueCmd(),
-		newPauseCmd(),
-		newResumeCmd(),
-		newNextCmd(),
-		newStopCmd(),
-		newStatusCmd(),
-		newAuthCmd(),
+		newQueueCmd(factories),
+		newPauseCmd(factories.control),
+		newResumeCmd(factories.control),
+		newNextCmd(factories.control),
+		newStopCmd(factories.control),
+		newStatusCmd(factories.control),
+		newAuthCmd(factories.config),
 	)
 
 	return cmd
 }
 
-func runPlay(cmd *cobra.Command, args []string) error {
+func runPlay(cmd *cobra.Command, args []string, newPlayback appFactory) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
 
-	application, err := app.NewPlayback()
+	application, err := newPlayback()
 	if err != nil {
 		return err
 	}
