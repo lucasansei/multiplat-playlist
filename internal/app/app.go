@@ -22,6 +22,7 @@ var (
 	ErrEmptyQueue    = errors.New("queue is empty")
 	ErrQueueFinished = errors.New("queue finished")
 	ErrPlayerMissing = errors.New("player is not configured")
+	ErrNoSession     = errors.New("no active playback session")
 )
 
 type App struct {
@@ -83,6 +84,10 @@ func NewConfig() (*App, error) {
 	return &App{
 		config: cfg,
 	}, nil
+}
+
+func NewControl() (*App, error) {
+	return &App{}, nil
 }
 
 func (a *App) Close() error {
@@ -236,11 +241,9 @@ func (a *App) QueueClear() error {
 }
 
 func (a *App) Pause() error {
-	if a.player == nil {
-		return ErrPlayerMissing
-	}
-
-	if err := a.player.Pause(); err != nil {
+	if err := a.withActiveMPV(func(_ *session.State, client *player.MPVIPCClient) error {
+		return client.Pause()
+	}); err != nil {
 		return err
 	}
 	fmt.Println("⏸ Paused")
@@ -248,11 +251,9 @@ func (a *App) Pause() error {
 }
 
 func (a *App) Resume() error {
-	if a.player == nil {
-		return ErrPlayerMissing
-	}
-
-	if err := a.player.Resume(); err != nil {
+	if err := a.withActiveMPV(func(_ *session.State, client *player.MPVIPCClient) error {
+		return client.Resume()
+	}); err != nil {
 		return err
 	}
 	fmt.Println("▶ Resumed")
@@ -260,11 +261,7 @@ func (a *App) Resume() error {
 }
 
 func (a *App) Next() error {
-	if a.player == nil {
-		return ErrPlayerMissing
-	}
-
-	if err := a.player.Stop(); err != nil {
+	if err := a.stopActiveSession(); err != nil {
 		return err
 	}
 	fmt.Println("⏭ Skipped to next")
@@ -272,11 +269,7 @@ func (a *App) Next() error {
 }
 
 func (a *App) Stop() error {
-	if a.player == nil {
-		return ErrPlayerMissing
-	}
-
-	if err := a.player.Stop(); err != nil {
+	if err := a.stopActiveSession(); err != nil {
 		return err
 	}
 	fmt.Println("⏹ Stopped")
@@ -284,27 +277,35 @@ func (a *App) Stop() error {
 }
 
 func (a *App) Status() error {
-	if a.player == nil {
-		return ErrPlayerMissing
+	state, err := a.activeSession()
+	if err != nil {
+		if errors.Is(err, ErrNoSession) {
+			fmt.Println("Status: stopped")
+			fmt.Println("No track currently playing")
+			return nil
+		}
+		return err
 	}
 
-	status := a.player.Status()
-	var current *queue.Track
-	queueSize := 0
-	currentIndex := -1
-	if a.queue != nil {
-		current = a.queue.Current()
-		queueSize = a.queue.Size()
-		currentIndex = a.queue.CurrentIndex()
+	client, err := player.DialMPVIPC(state.SocketPath)
+	if err != nil {
+		return fmt.Errorf("connect to active player: %w", err)
+	}
+	defer client.Close()
+
+	status, err := client.Status()
+	if err != nil {
+		return fmt.Errorf("get player status: %w", err)
 	}
 
 	fmt.Printf("Status: %s\n", status)
-
-	if current != nil {
-		fmt.Printf("Current: [%s] %s\n", current.Platform, current.URL)
-		fmt.Printf("Queue position: %d/%d\n", currentIndex+1, queueSize)
+	if state.Track.URL != "" {
+		fmt.Printf("Current: [%s] %s\n", state.Track.Platform, state.Track.URL)
 	} else {
 		fmt.Println("No track currently playing")
+	}
+	if state.QueueIndex >= 0 && state.QueueSize > 0 {
+		fmt.Printf("Queue position: %d/%d\n", state.QueueIndex+1, state.QueueSize)
 	}
 
 	return nil
@@ -346,6 +347,53 @@ func (a *App) AuthSpotify() error {
 
 	fmt.Println("✓ Spotify credentials saved!")
 	return nil
+}
+
+func (a *App) stopActiveSession() error {
+	return a.withActiveMPV(func(_ *session.State, client *player.MPVIPCClient) error {
+		if err := client.Stop(); err != nil {
+			return err
+		}
+		if err := session.Clear(); err != nil {
+			return fmt.Errorf("clear session: %w", err)
+		}
+		return nil
+	})
+}
+
+func (a *App) withActiveMPV(fn func(*session.State, *player.MPVIPCClient) error) error {
+	state, err := a.activeSession()
+	if err != nil {
+		return err
+	}
+	if state.Player != "mpv" {
+		return fmt.Errorf("unsupported active player: %s", state.Player)
+	}
+
+	client, err := player.DialMPVIPC(state.SocketPath)
+	if err != nil {
+		return fmt.Errorf("connect to active player: %w", err)
+	}
+	defer client.Close()
+
+	return fn(state, client)
+}
+
+func (a *App) activeSession() (*session.State, error) {
+	state, err := session.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load session: %w", err)
+	}
+	if state == nil {
+		return nil, ErrNoSession
+	}
+	if !session.IsActive(*state) {
+		if err := session.Clear(); err != nil {
+			return nil, fmt.Errorf("clear stale session: %w", err)
+		}
+		return nil, ErrNoSession
+	}
+	return state, nil
 }
 
 func (a *App) playStream(ctx context.Context, streamURL string, track queue.Track, queueIndex int, queueSize int) error {

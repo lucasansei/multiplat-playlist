@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -85,6 +86,23 @@ func Clear() error {
 	}
 
 	return nil
+}
+
+func IsActive(state State) bool {
+	if state.PID <= 0 || state.SocketPath == "" {
+		return false
+	}
+
+	if _, err := os.Stat(state.SocketPath); err != nil {
+		return false
+	}
+
+	process, err := os.FindProcess(state.PID)
+	if err != nil {
+		return false
+	}
+
+	return process.Signal(syscall.Signal(0)) == nil
 }
 
 func Path() (string, error) {

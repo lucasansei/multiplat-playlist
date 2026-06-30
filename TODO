@@ -1,0 +1,177 @@
+# multiplat-playlist TODO
+
+## Phase 1: Core Functionality
+
+### CLI Commands
+- [ ] Implement `mplay [url]` - Play a single song immediately
+- [ ] Implement `mplay queue add [url]` - Add song to queue
+- [ ] Implement `mplay queue play` - Start playing the queue
+- [ ] Implement `mplay queue list` - Show current queue
+- [ ] Implement `mplay queue clear` - Clear the queue
+- [ ] Implement `mplay pause` - Pause playback
+- [ ] Implement `mplay resume` - Resume playback
+- [ ] Implement `mplay next` - Skip to next song
+- [ ] Implement `mplay stop` - Stop playback completely
+- [ ] Implement `mplay status` - Show current playing song and status
+- [ ] Implement `mplay auth` - Spotify OAuth flow
+
+### Spotify Integration
+- [ ] Add `github.com/zmb3/spotify` dependency
+- [ ] Implement OAuth authentication flow
+- [ ] Store and refresh access tokens
+- [ ] Fetch track metadata (title, artist, album)
+- [ ] Get playback URL for Spotify tracks
+- [ ] Handle Spotify API rate limits
+- [ ] Handle expired tokens gracefully
+
+### YouTube Integration
+- [ ] Verify yt-dlp is installed on system
+- [ ] Extract audio stream URL using yt-dlp
+- [ ] Fetch video metadata (title, channel)
+- [ ] Handle age-restricted videos
+- [ ] Handle unavailable videos gracefully
+- [ ] Cache stream URLs (they expire after ~6 hours)
+
+### Player Management
+- [ ] Verify mpv/ffplay is installed
+- [ ] Implement play/pause/stop controls
+- [ ] Handle player process lifecycle
+- [ ] Track playback state (playing, paused, stopped)
+- [ ] Detect when song finishes playing
+- [ ] Auto-advance to next song in queue
+- [ ] Handle player crashes gracefully
+
+### Queue System
+- [ ] Persist queue to disk
+- [ ] Load queue on startup
+- [ ] Implement queue index tracking
+- [ ] Add shuffle functionality
+- [ ] Add repeat (one/all) functionality
+- [ ] Show queue position and total tracks
+
+## Phase 2: Enhanced Features
+
+### Configuration
+- [ ] Validate configuration on load
+- [ ] Add volume control configuration
+- [ ] Add audio quality preferences
+- [ ] Allow custom player backend selection
+- [ ] Add default platform preference
+
+### Error Handling
+- [ ] User-friendly error messages
+- [ ] Network error retry logic
+- [ ] Invalid URL error messages
+- [ ] Missing dependency warnings
+- [ ] Logging system for debugging
+
+### User Experience
+- [ ] Add progress bar for current song
+- [ ] Show time elapsed/remaining
+- [ ] Display album art in terminal (optional)
+- [ ] Add keyboard shortcuts for controls
+- [ ] Colorized terminal output
+- [ ] Add `--verbose` flag for debugging
+
+## Phase 3: Advanced Features
+
+### Playlist Support
+- [ ] Parse Spotify playlist URLs
+- [ ] Parse YouTube playlist URLs
+- [ ] Add all tracks from playlist to queue
+- [ ] Handle large playlists efficiently
+
+### Search Functionality
+- [ ] `mplay search spotify [query]` - Search Spotify
+- [ ] `mplay search youtube [query]` - Search YouTube
+- [ ] Interactive search results selection
+- [ ] Play search result directly
+
+### Session Management
+- [ ] Save named queues (`mplay queue save [name]`)
+- [ ] Load named queues (`mplay queue load [name]`)
+- [ ] List saved queues
+- [ ] Delete saved queues
+
+### Scrobbling
+- [ ] Last.fm integration
+- [ ] Scrobble currently playing track
+- [ ] Handle authentication for Last.fm
+- [ ] Configure scrobbling preferences
+
+### Interactive TUI Mode
+- [ ] Build TUI with `github.com/charmbracelet/bubbletea`
+- [ ] Real-time queue visualization
+- [ ] Interactive controls (arrow keys, vim bindings)
+- [ ] Live progress bar
+- [ ] Volume slider
+
+## Phase 4: Platform Expansion
+
+### Additional Platforms
+- [ ] SoundCloud support
+- [ ] Apple Music support (if API available)
+- [ ] Bandcamp support
+- [ ] Deezer support
+
+### Cross-Platform
+- [ ] Test on Linux
+- [ ] Test on macOS
+- [ ] Test on Windows (WSL)
+- [ ] Handle platform-specific player differences
+
+## Phase 5: Distribution & Polish
+
+### Build & Release
+- [ ] Cross-compilation for Linux/macOS/Windows
+- [ ] Create installation script
+- [ ] Publish to Homebrew (macOS/Linux)
+- [ ] Publish to AUR (Arch Linux)
+- [ ] GitHub releases with pre-built binaries
+- [ ] Add version command (`mplay --version`)
+
+### Documentation
+- [ ] Comprehensive README
+- [ ] Installation guide for all platforms
+- [ ] Usage examples and tutorials
+- [ ] Configuration file documentation
+- [ ] Troubleshooting guide
+- [ ] Contributing guidelines
+
+### Testing
+- [ ] Unit tests for parser
+- [ ] Unit tests for queue management
+- [ ] Integration tests for player
+- [ ] Mock tests for API clients
+- [ ] CI/CD pipeline (GitHub Actions)
+
+### Code Quality
+- [ ] Add golangci-lint configuration
+- [ ] Run `go fmt` on all files
+- [ ] Add code comments and documentation
+- [ ] Refactor duplicate code
+- [ ] Optimize performance bottlenecks
+
+## Future Ideas (Maybe)
+
+- [ ] Desktop notifications for track changes
+- [ ] Discord Rich Presence integration
+- [ ] Equalizer support
+- [ ] Crossfade between tracks
+- [ ] Download songs for offline playback
+- [ ] Lyrics display
+- [ ] Mini HTTP server for web control
+- [ ] Mobile app companion
+- [ ] Share queue with friends
+- [ ] Social features (what are friends listening to)
+
+---
+
+**Priority Legend:**
+- Phase 1 = MVP (Minimum Viable Product)
+- Phase 2 = Polish & UX
+- Phase 3 = Power user features
+- Phase 4 = Platform expansion
+- Phase 5 = Production ready
+
+Start with Phase 1, get it working end-to-end, then iterate!

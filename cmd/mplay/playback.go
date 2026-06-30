@@ -11,7 +11,7 @@ func newPauseCmd() *cobra.Command {
 		Use:   "pause",
 		Short: "Pause playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := app.NewControl()
 			if err != nil {
 				return err
 			}
@@ -27,7 +27,7 @@ func newResumeCmd() *cobra.Command {
 		Use:   "resume",
 		Short: "Resume playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := app.NewControl()
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func newNextCmd() *cobra.Command {
 		Use:   "next",
 		Short: "Skip to next song",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := app.NewControl()
 			if err != nil {
 				return err
 			}
@@ -59,7 +59,7 @@ func newStopCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop playback",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := app.NewControl()
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func newStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show playback status",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			application, err := app.NewPlayback()
+			application, err := app.NewControl()
 			if err != nil {
 				return err
 			}

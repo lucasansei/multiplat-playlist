@@ -65,3 +65,30 @@ func TestLoadMissingSession(t *testing.T) {
 		t.Fatalf("Load() = %#v, want nil", got)
 	}
 }
+
+func TestIsActive(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "mpv.sock")
+	if err := os.WriteFile(socketPath, []byte{}, 0644); err != nil {
+		t.Fatalf("write socket placeholder: %v", err)
+	}
+
+	state := State{
+		PID:        os.Getpid(),
+		SocketPath: socketPath,
+	}
+
+	if !IsActive(state) {
+		t.Fatal("IsActive() = false, want true")
+	}
+}
+
+func TestIsActiveMissingSocket(t *testing.T) {
+	state := State{
+		PID:        os.Getpid(),
+		SocketPath: filepath.Join(t.TempDir(), "missing.sock"),
+	}
+
+	if IsActive(state) {
+		t.Fatal("IsActive() = true, want false")
+	}
+}
