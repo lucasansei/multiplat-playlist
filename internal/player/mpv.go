@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -25,7 +24,10 @@ type MPVPlayer struct {
 	cmd        *exec.Cmd
 	mu         sync.Mutex
 	requestID  int
+	dial       socketDialer
 }
+
+type socketDialer func(network string, address string, timeout time.Duration) (net.Conn, error)
 
 // mpvCommand represents a JSON-RPC command to mpv
 type mpvCommand struct {
@@ -54,21 +56,17 @@ func (p *MPVPlayer) IsAvailable() bool {
 // Play starts playing the given URL
 func (p *MPVPlayer) Play(ctx context.Context, url string, onStart StartFunc) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Stop any existing playback
 	if err := p.cleanup(); err != nil {
+		p.mu.Unlock()
 		return fmt.Errorf("cleanup existing player: %w", err)
 	}
 
-	// Create socket path
 	socketPath, err := p.createSocketPath()
 	if err != nil {
+		p.mu.Unlock()
 		return fmt.Errorf("create socket path: %w", err)
 	}
-	p.socketPath = socketPath
 
-	// Start mpv process with IPC
 	cmd := exec.CommandContext(ctx, "mpv",
 		"--no-video",
 		"--really-quiet",
@@ -79,46 +77,55 @@ func (p *MPVPlayer) Play(ctx context.Context, url string, onStart StartFunc) err
 	)
 
 	if err := cmd.Start(); err != nil {
+		p.mu.Unlock()
 		return fmt.Errorf("start mpv: %w", err)
 	}
 	p.cmd = cmd
+	p.socketPath = socketPath
+	p.conn = nil
+	p.mu.Unlock()
 
-	// Wait for socket to be ready
-	if err := p.waitForSocket(); err != nil {
-		p.cleanup()
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	if err := p.waitForSocket(ctx, socketPath, done); err != nil {
+		p.cleanupPlayback(cmd)
 		return fmt.Errorf("connect to mpv: %w", err)
 	}
 
-	// Connect to socket
-	conn, err := net.DialTimeout("unix", socketPath, socketTimeout)
+	conn, err := p.dialSocket(socketPath)
 	if err != nil {
-		p.cleanup()
+		p.cleanupPlayback(cmd)
 		return fmt.Errorf("dial socket: %w", err)
 	}
+
+	p.mu.Lock()
+	if p.cmd != cmd {
+		p.mu.Unlock()
+		conn.Close()
+		return fmt.Errorf("playback stopped")
+	}
 	p.conn = conn
+	p.mu.Unlock()
 
 	if onStart != nil {
 		if err := onStart(PlaybackSession{
 			PID:        cmd.Process.Pid,
 			SocketPath: socketPath,
 		}); err != nil {
-			p.cleanup()
+			p.cleanupPlayback(cmd)
 			return fmt.Errorf("start playback session: %w", err)
 		}
 	}
 
-	// Wait for playback to finish or context cancellation
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
 	select {
 	case <-ctx.Done():
-		p.cleanup()
+		p.cleanupPlayback(cmd)
 		return ctx.Err()
 	case err := <-done:
-		p.cleanup()
+		p.cleanupPlayback(cmd)
 		if err != nil {
 			// mpv exits with code 0 on normal completion
 			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 0 {
@@ -292,7 +299,6 @@ func (p *MPVPlayer) getProperty(property string) (string, error) {
 func (p *MPVPlayer) cleanup() error {
 	var errs []error
 
-	// Close socket connection
 	if p.conn != nil {
 		if err := p.conn.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close connection: %w", err))
@@ -325,25 +331,60 @@ func (p *MPVPlayer) cleanup() error {
 	return nil
 }
 
+func (p *MPVPlayer) cleanupPlayback(cmd *exec.Cmd) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.cmd != cmd {
+		return nil
+	}
+
+	return p.cleanup()
+}
+
+func (p *MPVPlayer) dialSocket(socketPath string) (net.Conn, error) {
+	dial := net.DialTimeout
+	if p.dial != nil {
+		dial = p.dial
+	}
+	return dial("unix", socketPath, socketTimeout)
+}
+
 // createSocketPath creates a unique socket path
 func (p *MPVPlayer) createSocketPath() (string, error) {
-	tmpDir := os.TempDir()
-	socketName := fmt.Sprintf("%s%d", mpvSocketPrefix, os.Getpid())
-	return filepath.Join(tmpDir, socketName), nil
+	file, err := os.CreateTemp("", mpvSocketPrefix)
+	if err != nil {
+		return "", err
+	}
+	socketPath := file.Name()
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Remove(socketPath); err != nil {
+		return "", err
+	}
+	return socketPath, nil
 }
 
 // waitForSocket waits for the mpv socket to be created
-func (p *MPVPlayer) waitForSocket() error {
+func (p *MPVPlayer) waitForSocket(ctx context.Context, socketPath string, done <-chan error) error {
 	timeout := time.After(3 * time.Second)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("mpv exited before socket was ready: %w", err)
+			}
+			return fmt.Errorf("mpv exited before socket was ready")
 		case <-timeout:
 			return fmt.Errorf("timeout waiting for socket")
 		case <-ticker.C:
-			if _, err := os.Stat(p.socketPath); err == nil {
+			if _, err := os.Stat(socketPath); err == nil {
 				return nil
 			}
 		}
