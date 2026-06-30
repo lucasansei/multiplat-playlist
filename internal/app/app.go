@@ -15,6 +15,7 @@ import (
 	"github.com/lucasansei/multiplat-playlist/internal/player"
 	"github.com/lucasansei/multiplat-playlist/internal/queue"
 	"github.com/lucasansei/multiplat-playlist/internal/session"
+	"github.com/lucasansei/multiplat-playlist/internal/spotify"
 	"github.com/lucasansei/multiplat-playlist/internal/youtube"
 )
 
@@ -30,9 +31,14 @@ type App struct {
 	queue         *queue.Queue
 	player        player.Player
 	streamResolve streamResolver
+	spotifyClient spotifyPreviewClient
 }
 
-type streamResolver func(*parser.ParsedURL) (string, error)
+type streamResolver func(context.Context, *parser.ParsedURL) (string, error)
+
+type spotifyPreviewClient interface {
+	PreviewURL(context.Context, string) (string, error)
+}
 
 func New() (*App, error) {
 	return NewPlayback()
@@ -55,10 +61,9 @@ func NewPlayback() (*App, error) {
 	}
 
 	return &App{
-		config:        cfg,
-		queue:         q,
-		player:        p,
-		streamResolve: defaultStreamResolver,
+		config: cfg,
+		queue:  q,
+		player: p,
 	}, nil
 }
 
@@ -74,9 +79,8 @@ func NewQueue() (*App, error) {
 	}
 
 	return &App{
-		config:        cfg,
-		queue:         q,
-		streamResolve: defaultStreamResolver,
+		config: cfg,
+		queue:  q,
 	}, nil
 }
 
@@ -87,21 +91,15 @@ func NewConfig() (*App, error) {
 	}
 
 	return &App{
-		config:        cfg,
-		streamResolve: defaultStreamResolver,
+		config: cfg,
 	}, nil
 }
 
 func NewControl() (*App, error) {
-	return &App{
-		streamResolve: defaultStreamResolver,
-	}, nil
+	return &App{}, nil
 }
 
 func newWithDependencies(cfg *config.Config, q *queue.Queue, p player.Player, resolver streamResolver) *App {
-	if resolver == nil {
-		resolver = defaultStreamResolver
-	}
 	return &App{
 		config:        cfg,
 		queue:         q,
@@ -136,7 +134,7 @@ func (a *App) PlayURL(ctx context.Context, url string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	streamURL, err := a.getStreamURL(parsed)
+	streamURL, err := a.getStreamURL(ctx, parsed)
 	if err != nil {
 		return fmt.Errorf("get stream: %w", err)
 	}
@@ -207,7 +205,7 @@ func (a *App) QueuePlay(ctx context.Context) error {
 			Original: track.URL,
 		}
 
-		streamURL, err := a.getStreamURL(parsed)
+		streamURL, err := a.getStreamURL(ctx, parsed)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error getting stream: %v, skipping...\n", err)
 			continue
@@ -469,20 +467,44 @@ func (a *App) playStream(ctx context.Context, streamURL string, track queue.Trac
 	return err
 }
 
-func (a *App) getStreamURL(parsed *parser.ParsedURL) (string, error) {
+func (a *App) getStreamURL(ctx context.Context, parsed *parser.ParsedURL) (string, error) {
 	if a.streamResolve != nil {
-		return a.streamResolve(parsed)
+		return a.streamResolve(ctx, parsed)
 	}
-	return defaultStreamResolver(parsed)
+	return a.defaultStreamResolver(ctx, parsed)
 }
 
-func defaultStreamResolver(parsed *parser.ParsedURL) (string, error) {
+func (a *App) defaultStreamResolver(ctx context.Context, parsed *parser.ParsedURL) (string, error) {
 	switch parsed.Platform {
 	case parser.PlatformYouTube:
-		return youtube.GetStreamURL(parsed.ID)
+		return youtube.GetStreamURL(ctx, parsed.ID)
 	case parser.PlatformSpotify:
-		return "", errors.New("spotify not yet implemented")
+		return a.spotifyPreviewURL(ctx, parsed.ID)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", parsed.Platform)
 	}
+}
+
+func (a *App) spotifyPreviewURL(ctx context.Context, trackID string) (string, error) {
+	if a.config == nil {
+		return "", spotify.ErrMissingCredentials
+	}
+
+	client := a.spotifyClient
+	if client == nil {
+		client = spotify.NewClient(a.config.Spotify.ClientID, a.config.Spotify.ClientSecret)
+		a.spotifyClient = client
+	}
+
+	previewURL, err := client.PreviewURL(ctx, trackID)
+	if err != nil {
+		if errors.Is(err, spotify.ErrMissingCredentials) {
+			return "", errors.New("spotify credentials are not configured; run mplay auth")
+		}
+		if errors.Is(err, spotify.ErrPreviewUnavailable) {
+			return "", errors.New("spotify preview URL is not available for this track")
+		}
+		return "", err
+	}
+	return previewURL, nil
 }

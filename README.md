@@ -2,7 +2,7 @@
 
 A CLI music player written in Go for playing links from multiple music platforms in one queue.
 
-Current status: early MVP. YouTube playback works through `yt-dlp` and `mpv`. Spotify URLs are parsed, but Spotify playback is not implemented yet.
+Current status: early MVP. YouTube playback works through `yt-dlp` and `mpv`. Spotify track URLs can play through Spotify preview URLs when credentials are configured and a preview is available.
 
 ## Why?
 
@@ -11,10 +11,11 @@ Sometimes you want to listen to a song only available on YouTube, but you're vib
 ## Features
 
 - Play YouTube songs from the command line
+- Play Spotify track previews when available
 - Queue supported links and play them sequentially
 - Control active MPV playback with pause, resume, stop, next, and status commands
 - Persist config, queue state, and active playback session metadata
-- Planned: Spotify metadata and playback support
+- Planned: full Spotify playback support
 
 ## Installation
 
@@ -54,6 +55,7 @@ sudo pacman -S mpv yt-dlp
 Play a single song:
 ```bash
 mplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
+mplay spotify:track:[track-id]
 ```
 
 Queue multiple songs:
@@ -86,7 +88,7 @@ A daemon/session worker model is planned for future cross-invocation queue owner
 ## Supported Platforms
 
 - **YouTube** - Implemented through `yt-dlp`
-- **Spotify** - URL parsing only; playback is planned
+- **Spotify** - Track metadata lookup and preview URL playback fallback
 
 ### Supported URL Formats
 
@@ -100,7 +102,7 @@ A daemon/session worker model is planned for future cross-invocation queue owner
 
 ## Configuration
 
-Spotify credential storage exists, but Spotify playback does not use it yet:
+Spotify playback uses the client credentials flow for track metadata and preview URL lookup:
 ```bash
 mplay auth
 ```
@@ -124,7 +126,7 @@ Get Spotify credentials from the [Spotify Developer Dashboard](https://developer
 ## Tech Stack
 
 - **Go** - Fast, single-binary distribution, excellent concurrency
-- Spotify Web API scaffolding
+- Spotify Web API for track metadata and preview URLs
 - yt-dlp for YouTube stream extraction
 - mpv for audio playback
 
@@ -132,8 +134,9 @@ Get Spotify credentials from the [Spotify Developer Dashboard](https://developer
 
 1. Parse the URL to detect the platform.
 2. For YouTube links, resolve an audio stream with `yt-dlp`.
-3. Route the stream to `mpv`.
-4. Persist queue state and active MPV session metadata.
+3. For Spotify links, fetch track metadata and use the preview URL when Spotify provides one.
+4. Route the stream to `mpv`.
+5. Persist queue state and active MPV session metadata.
 
 ## Project Structure
 
@@ -155,7 +158,8 @@ multiplat-playlist/
 
 ## Limitations
 
-- Spotify playback is not implemented yet
+- Spotify playback is preview-only; many tracks do not expose a preview URL
+- Full Spotify playback is not implemented yet
 - YouTube playback quality depends on available streams
 - Terminal-based, no GUI controls
 - Requires external dependencies (mpv, yt-dlp)
@@ -163,7 +167,7 @@ multiplat-playlist/
 
 ## Roadmap
 
-- [ ] Spotify metadata and preview playback fallback
+- [x] Spotify metadata and preview playback fallback
 - [ ] Session/daemon queue worker for cross-invocation queue ownership
 - [ ] Playlist URL support
 - [ ] Search functionality (play by song name)

@@ -19,7 +19,7 @@ func TestPlayURLUsesResolverAndPlayer(t *testing.T) {
 
 	fp := &fakePlayer{}
 	var resolved *parser.ParsedURL
-	a := newWithDependencies(&config.Config{}, nil, fp, func(parsed *parser.ParsedURL) (string, error) {
+	a := newWithDependencies(&config.Config{}, nil, fp, func(_ context.Context, parsed *parser.ParsedURL) (string, error) {
 		resolved = parsed
 		return "stream://" + parsed.ID, nil
 	})
@@ -53,7 +53,7 @@ func TestPlayURLReturnsResolverError(t *testing.T) {
 
 	wantErr := errors.New("resolver failed")
 	fp := &fakePlayer{}
-	a := newWithDependencies(&config.Config{}, nil, fp, func(_ *parser.ParsedURL) (string, error) {
+	a := newWithDependencies(&config.Config{}, nil, fp, func(_ context.Context, _ *parser.ParsedURL) (string, error) {
 		return "", wantErr
 	})
 
@@ -123,7 +123,7 @@ func TestQueuePlayPlaysTracksInOrder(t *testing.T) {
 	q.Add(queue.Track{Platform: "youtube", ID: "two", URL: "https://youtu.be/two"})
 
 	fp := &fakePlayer{}
-	a := newWithDependencies(&config.Config{}, q, fp, func(parsed *parser.ParsedURL) (string, error) {
+	a := newWithDependencies(&config.Config{}, q, fp, func(_ context.Context, parsed *parser.ParsedURL) (string, error) {
 		return "stream://" + parsed.ID, nil
 	})
 
@@ -204,6 +204,53 @@ func TestNextRequiresActivePlaybackSessionAndDoesNotAdvanceQueue(t *testing.T) {
 	}
 }
 
+func TestPlayURLPlaysSpotifyPreviewURL(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	fp := &fakePlayer{}
+	sp := &fakeSpotifyPreviewClient{previewURL: "https://preview.example/track.mp3"}
+	a := newWithDependencies(&config.Config{
+		Spotify: config.SpotifyConfig{
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+		},
+	}, nil, fp, nil)
+	a.spotifyClient = sp
+
+	if err := a.PlayURL(context.Background(), "spotify:track:3n3Ppam7vgaVa1iaRUc9Lp"); err != nil {
+		t.Fatalf("PlayURL() error = %v", err)
+	}
+
+	if sp.trackID != "3n3Ppam7vgaVa1iaRUc9Lp" {
+		t.Fatalf("spotify track ID = %q, want 3n3Ppam7vgaVa1iaRUc9Lp", sp.trackID)
+	}
+	if len(fp.playedURLs) != 1 || fp.playedURLs[0] != "https://preview.example/track.mp3" {
+		t.Fatalf("played URLs = %#v, want spotify preview URL", fp.playedURLs)
+	}
+}
+
+func TestPlayURLReturnsSpotifyPreviewError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	wantErr := errors.New("spotify failed")
+	fp := &fakePlayer{}
+	a := newWithDependencies(&config.Config{
+		Spotify: config.SpotifyConfig{
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+		},
+	}, nil, fp, nil)
+	a.spotifyClient = &fakeSpotifyPreviewClient{err: wantErr}
+
+	err := a.PlayURL(context.Background(), "spotify:track:3n3Ppam7vgaVa1iaRUc9Lp")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("PlayURL() error = %v, want %v", err, wantErr)
+	}
+	if len(fp.playedURLs) != 0 {
+		t.Fatalf("played URLs = %#v, want none", fp.playedURLs)
+	}
+}
+
 type fakePlayer struct {
 	playedURLs []string
 	playErr    error
@@ -249,4 +296,18 @@ func (f *fakePlayer) IsAvailable() bool {
 
 func (f *fakePlayer) Close() error {
 	return nil
+}
+
+type fakeSpotifyPreviewClient struct {
+	trackID    string
+	previewURL string
+	err        error
+}
+
+func (f *fakeSpotifyPreviewClient) PreviewURL(_ context.Context, trackID string) (string, error) {
+	f.trackID = trackID
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.previewURL, nil
 }

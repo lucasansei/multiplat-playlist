@@ -26,7 +26,7 @@ func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mplay [url]",
 		Short: "A unified music player for Spotify and YouTube",
-		Long:  "Play songs from supported music links. YouTube playback is implemented; Spotify playback is planned.",
+		Long:  "Play songs from supported music links. YouTube playback is implemented; Spotify track previews play when credentials and preview URLs are available.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  runPlay,
 	}
