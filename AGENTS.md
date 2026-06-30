@@ -1,12 +1,12 @@
 # Agent Guidelines
 
-These guidelines are for any future coding agent working on this repository, regardless of tool: Codex, Claude, OpenCode, Cursor, or another agent. Read `README.md`, `MEMORY.md`, `TODO`, and this file before making changes.
+These guidelines are for any future coding agent working on this repository, regardless of tool: Codex, Claude, OpenCode, Cursor, or another agent. Read `README.md`, `MEMORY.md`, and this file before making changes.
 
 ## Current Baseline
 
 This project is an early MVP Go CLI for unified Spotify and YouTube playback. The current codebase has local scaffolding for Cobra commands, queue persistence, config persistence, YouTube stream extraction through `yt-dlp`, and MPV playback. Spotify playback is not implemented yet, and playback controls do not work across separate CLI invocations.
 
-Treat `MEMORY.md` as the current status snapshot. Treat `README.md` as product intent, not guaranteed implementation truth. Treat `TODO` as backlog context, not an exact source of completed work.
+Treat `MEMORY.md` as the current status snapshot. Treat `README.md` as product intent, not guaranteed implementation truth.
 
 Important: `.gitignore` anchors the local binaries as `/mplay` and `/multiplat-playlist`, so `cmd/mplay/` is intended to be visible to normal git status/staging.
 
@@ -128,7 +128,7 @@ Guidance:
 2. Add a platform package or client with a small interface for metadata and stream resolution.
 3. Wire the platform through `internal/app`.
 4. Add app tests using fake platform clients.
-5. Update `README.md`, `TODO`, and `MEMORY.md` with the actual status.
+5. Update `README.md` and `MEMORY.md` with the actual status.
 
 Do not add platform-specific logic directly to Cobra commands.
 
@@ -223,7 +223,6 @@ After a meaningful change:
 
 - Update `MEMORY.md` with the real implementation status.
 - Update `README.md` if user-visible behavior changed.
-- Update `TODO` if an item is completed, invalidated, or split into smaller work.
 - Mention new environment variables, config fields, or external dependency requirements.
 
 Documentation should distinguish clearly between:
