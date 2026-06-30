@@ -32,11 +32,15 @@ type queueData struct {
 }
 
 func Load() (*Queue, error) {
-	path, err := getQueuePath()
+	path, err := Path()
 	if err != nil {
 		return nil, fmt.Errorf("get queue path: %w", err)
 	}
 
+	return LoadFromPath(path)
+}
+
+func LoadFromPath(path string) (*Queue, error) {
 	q := &Queue{
 		tracks: make([]Track, 0),
 		index:  -1,
@@ -57,7 +61,7 @@ func Load() (*Queue, error) {
 	}
 
 	q.tracks = saved.Tracks
-	q.index = saved.Index
+	q.index = normalizeIndex(saved.Index, len(saved.Tracks))
 
 	return q, nil
 }
@@ -121,10 +125,17 @@ func (q *Queue) Clear() {
 	q.index = -1
 }
 
-func getQueuePath() (string, error) {
+func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(home, configDirName, appDirName, queueFileName), nil
+}
+
+func normalizeIndex(index int, size int) int {
+	if size == 0 || index < -1 || index >= size {
+		return -1
+	}
+	return index
 }

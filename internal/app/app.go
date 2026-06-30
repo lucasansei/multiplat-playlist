@@ -26,10 +26,13 @@ var (
 )
 
 type App struct {
-	config *config.Config
-	queue  *queue.Queue
-	player player.Player
+	config        *config.Config
+	queue         *queue.Queue
+	player        player.Player
+	streamResolve streamResolver
 }
+
+type streamResolver func(*parser.ParsedURL) (string, error)
 
 func New() (*App, error) {
 	return NewPlayback()
@@ -52,9 +55,10 @@ func NewPlayback() (*App, error) {
 	}
 
 	return &App{
-		config: cfg,
-		queue:  q,
-		player: p,
+		config:        cfg,
+		queue:         q,
+		player:        p,
+		streamResolve: defaultStreamResolver,
 	}, nil
 }
 
@@ -70,8 +74,9 @@ func NewQueue() (*App, error) {
 	}
 
 	return &App{
-		config: cfg,
-		queue:  q,
+		config:        cfg,
+		queue:         q,
+		streamResolve: defaultStreamResolver,
 	}, nil
 }
 
@@ -82,12 +87,27 @@ func NewConfig() (*App, error) {
 	}
 
 	return &App{
-		config: cfg,
+		config:        cfg,
+		streamResolve: defaultStreamResolver,
 	}, nil
 }
 
 func NewControl() (*App, error) {
-	return &App{}, nil
+	return &App{
+		streamResolve: defaultStreamResolver,
+	}, nil
+}
+
+func newWithDependencies(cfg *config.Config, q *queue.Queue, p player.Player, resolver streamResolver) *App {
+	if resolver == nil {
+		resolver = defaultStreamResolver
+	}
+	return &App{
+		config:        cfg,
+		queue:         q,
+		player:        p,
+		streamResolve: resolver,
+	}
 }
 
 func (a *App) Close() error {
@@ -441,6 +461,13 @@ func (a *App) playStream(ctx context.Context, streamURL string, track queue.Trac
 }
 
 func (a *App) getStreamURL(parsed *parser.ParsedURL) (string, error) {
+	if a.streamResolve != nil {
+		return a.streamResolve(parsed)
+	}
+	return defaultStreamResolver(parsed)
+}
+
+func defaultStreamResolver(parsed *parser.ParsedURL) (string, error) {
 	switch parsed.Platform {
 	case parser.PlatformYouTube:
 		return youtube.GetStreamURL(parsed.ID)

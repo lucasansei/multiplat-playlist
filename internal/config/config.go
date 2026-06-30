@@ -30,11 +30,15 @@ type PlayerConfig struct {
 }
 
 func Load() (*Config, error) {
-	path, err := getConfigPath()
+	path, err := Path()
 	if err != nil {
 		return nil, fmt.Errorf("get config path: %w", err)
 	}
 
+	return LoadFromPath(path)
+}
+
+func LoadFromPath(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -52,11 +56,15 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Save() error {
-	path, err := getConfigPath()
+	path, err := Path()
 	if err != nil {
 		return fmt.Errorf("get config path: %w", err)
 	}
 
+	return c.SaveToPath(path)
+}
+
+func (c *Config) SaveToPath(path string) error {
 	configDir := filepath.Dir(path)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
@@ -74,7 +82,7 @@ func (c *Config) Save() error {
 	return nil
 }
 
-func getConfigPath() (string, error) {
+func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
