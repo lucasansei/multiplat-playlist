@@ -430,10 +430,17 @@ func (a *App) playStream(ctx context.Context, streamURL string, track queue.Trac
 
 	sessionSaved := false
 	err := a.player.Play(ctx, streamURL, func(playback player.PlaybackSession) error {
+		playbackKind := session.PlaybackKindDirect
+		if queueIndex >= 0 {
+			playbackKind = session.PlaybackKindQueue
+		}
+
 		state := session.State{
-			Player:     "mpv",
-			PID:        playback.PID,
-			SocketPath: playback.SocketPath,
+			Player:        "mpv",
+			PID:           playback.PID,
+			SocketPath:    playback.SocketPath,
+			PlaybackKind:  playbackKind,
+			ControllerPID: os.Getpid(),
 			Track: session.Track{
 				Platform: track.Platform,
 				ID:       track.ID,

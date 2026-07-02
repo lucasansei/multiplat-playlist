@@ -48,6 +48,41 @@ func TestPlayURLUsesResolverAndPlayer(t *testing.T) {
 	}
 }
 
+func TestPlayURLWritesDirectPlaybackSessionMetadata(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	var saved session.State
+	fp := &fakePlayer{
+		afterStart: func() {
+			state, err := session.Load()
+			if err != nil {
+				t.Fatalf("session.Load() error = %v", err)
+			}
+			if state == nil {
+				t.Fatal("session.Load() = nil, want active session")
+			}
+			saved = *state
+		},
+	}
+	a := newWithDependencies(&config.Config{}, nil, fp, func(_ context.Context, parsed *parser.ParsedURL) (string, error) {
+		return "stream://" + parsed.ID, nil
+	})
+
+	if err := a.PlayURL(context.Background(), "https://youtu.be/dQw4w9WgXcQ"); err != nil {
+		t.Fatalf("PlayURL() error = %v", err)
+	}
+
+	if saved.PlaybackKind != session.PlaybackKindDirect {
+		t.Fatalf("PlaybackKind = %q, want direct", saved.PlaybackKind)
+	}
+	if saved.ControllerPID != os.Getpid() {
+		t.Fatalf("ControllerPID = %d, want current process %d", saved.ControllerPID, os.Getpid())
+	}
+	if saved.QueueIndex != -1 || saved.QueueSize != 0 {
+		t.Fatalf("queue metadata = %d/%d, want -1/0", saved.QueueIndex, saved.QueueSize)
+	}
+}
+
 func TestPlayURLReturnsResolverError(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
@@ -142,6 +177,47 @@ func TestQueuePlayPlaysTracksInOrder(t *testing.T) {
 	}
 	if q.CurrentIndex() != 1 {
 		t.Fatalf("CurrentIndex() = %d, want 1", q.CurrentIndex())
+	}
+}
+
+func TestQueuePlayWritesQueuePlaybackSessionMetadata(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	q, err := queue.LoadFromPath(filepath.Join(t.TempDir(), "queue.json"))
+	if err != nil {
+		t.Fatalf("LoadFromPath() error = %v", err)
+	}
+	q.Add(queue.Track{Platform: "youtube", ID: "one", URL: "https://youtu.be/one"})
+
+	var saved session.State
+	fp := &fakePlayer{
+		afterStart: func() {
+			state, err := session.Load()
+			if err != nil {
+				t.Fatalf("session.Load() error = %v", err)
+			}
+			if state == nil {
+				t.Fatal("session.Load() = nil, want active session")
+			}
+			saved = *state
+		},
+	}
+	a := newWithDependencies(&config.Config{}, q, fp, func(_ context.Context, parsed *parser.ParsedURL) (string, error) {
+		return "stream://" + parsed.ID, nil
+	})
+
+	if err := a.QueuePlay(context.Background()); err != nil {
+		t.Fatalf("QueuePlay() error = %v", err)
+	}
+
+	if saved.PlaybackKind != session.PlaybackKindQueue {
+		t.Fatalf("PlaybackKind = %q, want queue", saved.PlaybackKind)
+	}
+	if saved.ControllerPID != os.Getpid() {
+		t.Fatalf("ControllerPID = %d, want current process %d", saved.ControllerPID, os.Getpid())
+	}
+	if saved.QueueIndex != 0 || saved.QueueSize != 1 {
+		t.Fatalf("queue metadata = %d/%d, want 0/1", saved.QueueIndex, saved.QueueSize)
 	}
 }
 
@@ -255,6 +331,7 @@ type fakePlayer struct {
 	playedURLs []string
 	playErr    error
 	socketPath string
+	afterStart func()
 }
 
 func (f *fakePlayer) Play(_ context.Context, url string, onStart player.StartFunc) error {
@@ -269,6 +346,9 @@ func (f *fakePlayer) Play(_ context.Context, url string, onStart player.StartFun
 			SocketPath: socketPath,
 		}); err != nil {
 			return err
+		}
+		if f.afterStart != nil {
+			f.afterStart()
 		}
 	}
 	return f.playErr

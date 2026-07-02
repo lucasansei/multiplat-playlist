@@ -21,14 +21,23 @@ type Track struct {
 	URL      string `json:"url"`
 }
 
+type PlaybackKind string
+
+const (
+	PlaybackKindDirect PlaybackKind = "direct"
+	PlaybackKindQueue  PlaybackKind = "queue"
+)
+
 type State struct {
-	Player     string    `json:"player"`
-	PID        int       `json:"pid"`
-	SocketPath string    `json:"socket_path"`
-	Track      Track     `json:"track"`
-	QueueIndex int       `json:"queue_index"`
-	QueueSize  int       `json:"queue_size"`
-	StartedAt  time.Time `json:"started_at"`
+	Player        string       `json:"player"`
+	PID           int          `json:"pid"`
+	SocketPath    string       `json:"socket_path"`
+	PlaybackKind  PlaybackKind `json:"playback_kind,omitempty"`
+	ControllerPID int          `json:"controller_pid,omitempty"`
+	Track         Track        `json:"track"`
+	QueueIndex    int          `json:"queue_index"`
+	QueueSize     int          `json:"queue_size"`
+	StartedAt     time.Time    `json:"started_at"`
 }
 
 func Save(state State) error {
@@ -97,7 +106,18 @@ func IsActive(state State) bool {
 		return false
 	}
 
-	process, err := os.FindProcess(state.PID)
+	return processAlive(state.PID)
+}
+
+func IsControllerActive(state State) bool {
+	if state.ControllerPID <= 0 {
+		return false
+	}
+	return processAlive(state.ControllerPID)
+}
+
+func processAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false
 	}

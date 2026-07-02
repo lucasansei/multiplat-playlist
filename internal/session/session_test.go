@@ -12,9 +12,11 @@ func TestSaveLoadClear(t *testing.T) {
 
 	startedAt := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	want := State{
-		Player:     "mpv",
-		PID:        12345,
-		SocketPath: filepath.Join(os.TempDir(), "mpv-socket-test"),
+		Player:        "mpv",
+		PID:           12345,
+		SocketPath:    filepath.Join(os.TempDir(), "mpv-socket-test"),
+		PlaybackKind:  PlaybackKindQueue,
+		ControllerPID: 67890,
 		Track: Track{
 			Platform: "youtube",
 			ID:       "dQw4w9WgXcQ",
@@ -90,5 +92,23 @@ func TestIsActiveMissingSocket(t *testing.T) {
 
 	if IsActive(state) {
 		t.Fatal("IsActive() = true, want false")
+	}
+}
+
+func TestIsControllerActive(t *testing.T) {
+	state := State{
+		ControllerPID: os.Getpid(),
+	}
+
+	if !IsControllerActive(state) {
+		t.Fatal("IsControllerActive() = false, want true")
+	}
+}
+
+func TestIsControllerActiveMissingPID(t *testing.T) {
+	state := State{}
+
+	if IsControllerActive(state) {
+		t.Fatal("IsControllerActive() = true, want false")
 	}
 }
